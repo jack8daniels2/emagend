@@ -2,9 +2,8 @@ from datetime import date
 import os
 import random
 import log_gen
-import logging
 
-top_dir = '/tmp/amgeden/'
+top_dir = '/tmp/emagend/'
 
 try:
     os.mkdir(top_dir)

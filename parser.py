@@ -2,15 +2,10 @@ from datetime import datetime
 import ConfigParser
 import os
 import re
-import logging
+import utils.logging_helper
 
 CONFIG_FILE = 'config.txt'
-logger = logging.getLogger(__name__)
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-formatter = logging.Formatter('%(funcName)s@%(lineno)s: %(levelname)s %(message)s')
-ch.setFormatter(formatter)
-logger.addHandler(ch)
+logger = utils.logging_helper.init_logger(__name__)
 
 def parse_directories(top_dir, access_file_regex):
     ''' Look for all files matching top_dir/<date>/access_file_regex

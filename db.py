@@ -1,18 +1,13 @@
 import riak
 import ConfigParser
-import logging
+import utils.logging_helper
 from bitarray import bitarray
 from datetime import datetime, date
 from abc import ABCMeta, abstractmethod
 
 CONFIG_FILE = 'config.txt'
 
-logger = logging.getLogger(__name__)
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-formatter = logging.Formatter('%(funcName)s@%(lineno)s: %(levelname)s %(message)s')
-ch.setFormatter(formatter)
-logger.addHandler(ch)
+logger = utils.logging_helper.init_logger(__name__)
 
 class kl_db(object):
     __metaclass__ = ABCMeta
@@ -47,7 +42,6 @@ class riak_db(kl_db):
         if access_date < self.epoch:
             raise Exception('access_date {} before epoch {}'.format(access_date, self.epoch))
         index = (access_date - self.epoch).days + 1
-        print 'putting it at index {}'.format(index)
         # Riak requires a get before put if the object exists to maintain its vector_clock I suppose
         obj = self._bucket.get(ip)
         if not obj.data:
@@ -61,7 +55,7 @@ class riak_db(kl_db):
                 update.setall(0)
                 access_list.extend(update)
         access_list[-1] = 1
-        print access_list.tolist()
+        logger.info('key {} value {}'.format(ip, access_list))
         obj.data = access_list.unpack(one=b'\x01')
         obj.store()
 
@@ -76,15 +70,14 @@ class riak_db(kl_db):
                 raise Exception('Invalid date range {}'.format(date_range))
             start_index = (date_range[0] - self.epoch).days
             end_index = (date_range[1] - self.epoch).days + 1
-            print 'reading {}-{}'.format(start_index, end_index)
-            print access_list[start_index:end_index].tolist()
+            logger.info('Accessing {} {}'.format(start_index, end_index))
             return access_list[start_index:end_index]
 
     def isset(self, ip, date_range = None):
         return any(self.get(ip, date_range))
 
 if __name__ == '__main__':
-    db = kl_db('test')
+    db = riak_db('test')
     db.put('j', date.today().replace(month=1, day=1))
     print db.get('j')
     db.put('k', date.today().replace(month=1, day=1))
@@ -92,3 +85,4 @@ if __name__ == '__main__':
     db.put('k', date.today().replace(month=1, day=5))
     print db.get('k')
     print db.isset('k', (date.today().replace(month=1, day=5), date.today().replace(month=1, day=6)))
+    print db.isset('j', (date.today().replace(month=1, day=5), date.today().replace(month=1, day=6)))
