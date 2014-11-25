@@ -1,11 +1,13 @@
+"""
+An abc for database that maintains a <key, list<date>> and an implementation using
+Riak implementing the list using an bitarray
+"""
 import riak
 import ConfigParser
 import utils.logging_helper
 from bitarray import bitarray
 from datetime import datetime, date
 from abc import ABCMeta, abstractmethod
-
-CONFIG_FILE = 'config.txt'
 
 logger = utils.logging_helper.init_logger(__name__)
 
@@ -27,15 +29,15 @@ class kl_db(object):
 
 class riak_db(kl_db):
     ''' Riak DB implementation of db_abstract'''
-    def __init__(self, bucket = None):
-        config = ConfigParser.RawConfigParser()
-        config.read(CONFIG_FILE)
+    def __init__(self, config, bucket = None):
         if not bucket:
-            bucket = 'ip_access'
-        self.epoch = datetime.strptime(config.get('ingest','epoch'), '%Y-%m-%d').date()
-        self.pb_port = config.get('db','pb_port')
-        self.proto = config.get('db','proto')
-        self._client = riak.RiakClient(pb_port=self.pb_port, protocol=self.proto)
+            bucket = config.get('db','bucket')
+        epoch = config.get('ingest','epoch')
+        date_format = config.get('ingest','date_format')
+        self.epoch = datetime.strptime(epoch, date_format).date()
+        pb_port = config.get('db','pb_port')
+        proto = config.get('db','proto')
+        self._client = riak.RiakClient(pb_port=pb_port, protocol=proto)
         self._bucket = self._client.bucket(bucket)
 
     def put(self, ip, access_date):
@@ -55,34 +57,45 @@ class riak_db(kl_db):
                 update.setall(0)
                 access_list.extend(update)
         access_list[-1] = 1
-        logger.info('key {} value {}'.format(ip, access_list))
+        logger.info('key {} value {} at index {}'.format(ip, access_list, index-1))
         obj.data = access_list.unpack(one=b'\x01')
         obj.store()
 
     def get(self, ip, date_range = None):
         obj = self._bucket.get(ip)
-        if obj.data:
-            access_list = bitarray()
-            access_list.pack(bytes(obj.data))
-            if not date_range:
-                return access_list
-            if len(date_range) != 2 or date_range[1] < date_range[0]:
-                raise Exception('Invalid date range {}'.format(date_range))
-            start_index = (date_range[0] - self.epoch).days
-            end_index = (date_range[1] - self.epoch).days + 1
-            logger.info('Accessing {} {}'.format(start_index, end_index))
-            return access_list[start_index:end_index]
+        if not obj.data:
+            logger.debug('Key {} not found'.format(ip))
+            return
+        access_list = bitarray()
+        access_list.pack(bytes(obj.data))
+        if not date_range:
+            return access_list
+        if len(date_range) != 2 or date_range[1] < date_range[0]:
+            raise Exception('Invalid date range {}'.format(date_range))
+        start_index = (date_range[0] - self.epoch).days
+        end_index = (date_range[1] - self.epoch).days + 1
+        logger.info('Accessing {} {}'.format(start_index, end_index))
+        return access_list[start_index:end_index]
 
     def isset(self, ip, date_range = None):
-        return any(self.get(ip, date_range))
+        access = self.get(ip, date_range)
+        return (bool(access) and any(access))
+
+    def delete_bucket(self):
+        for keys in self._bucket.stream_keys():
+            map(self._bucket.delete, keys)
 
 if __name__ == '__main__':
-    db = riak_db('test')
-    db.put('j', date.today().replace(month=1, day=1))
+    CONFIG_FILE = 'config.cfg'
+    config = ConfigParser.RawConfigParser()
+    config.read(CONFIG_FILE)
+    db = riak_db(config, 'test')
+    db.put('j', date.today().replace(day=1))
     print db.get('j')
-    db.put('k', date.today().replace(month=1, day=1))
+    db.put('k', date.today().replace(day=1))
     print db.get('k')
-    db.put('k', date.today().replace(month=1, day=5))
+    db.put('k', date.today().replace(day=19))
     print db.get('k')
-    print db.isset('k', (date.today().replace(month=1, day=5), date.today().replace(month=1, day=6)))
-    print db.isset('j', (date.today().replace(month=1, day=5), date.today().replace(month=1, day=6)))
+    print db.isset('k', (date.today().replace(day=19), date.today().replace(day=19)))
+    print db.isset('j', (date.today().replace(day=19), date.today().replace(day=19)))
+    db.delete_bucket()

@@ -6,3 +6,8 @@ def encode(ip):
 
 def decode(encoded):
     return socket.inet_ntoa(struct.pack("!I", encoded))
+
+if __name__ == '__main__':
+    encoded = encode('0.1.0.1')
+    print encoded
+    print decode(encoded)

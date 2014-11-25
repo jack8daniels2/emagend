@@ -1,8 +1,0 @@
-[ingest]
-epoch = 2014-01-01
-log_dir = /tmp/emagend/
-access_file_regex = access.*
-
-[db]
-pb_port = 8087
-proto = pbc
