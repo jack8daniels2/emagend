@@ -1,5 +1,5 @@
 """
-The application crawl config['ingest']['log_dir'] looking for directories that
+The application crawls config['ingest']['log_dir'] looking for directories that
 can be parsed into date using the format config['ingest']['date_format'],
 containing access log files that match regex config['ingest']['access_log_pattern'].
 The complete path looks like - log_dir/date/[access_log,]
@@ -14,22 +14,64 @@ import ConfigParser
 from utils import logging_helper
 import parser
 import db
+import threading
+import Queue
+import itertools
+from datetime import datetime
 
 CONFIG_FILE = 'config.cfg'
 logger = logging_helper.init_logger(__name__)
 
 class Ingester(object):
-    def __init__(self, config):
-        self.db = db.riak_db(config)
+    def __init__(self, config, iterable, num_threads = 4, chunk_size = 50):
         self.config = config
+        self.num_threads = num_threads
+        self.chunk_size = chunk_size
+        self.tasks = Queue.Queue(num_threads)
+        self.refill_tasks = threading.Event()
+        self.iterable = iterable
+        #http://bugs.python.org/issue7980 need to call strptime before the threads call it!
+        epoch = config.get('ingest','epoch')
+        date_format = config.get('ingest','date_format')
+        epoch = datetime.strptime(epoch, date_format).date()
+
+    def _worker(self):
+        db_hndl = db.riak_db(self.config)
+        while True:
+            task = self.tasks.get()
+            for data in task:
+                db_hndl.put(*data)
+            self.tasks.task_done()
+            if self.tasks.qsize() < self.tasks.maxsize /  2:
+                self.refill_tasks.set()
 
     def start(self):
-        ''' Ingest all the IPs produced from crawling config.log_dir'''
-        #TODO: Use threading to parallelize this. Plenty of I/O blocking here
-        for dt, ip in parser.parse_directories(config):
-            self.db.put(ip, dt)
+        '''
+        Ingest all the IPs produced from crawling config.log_dir.
+        The key logic in this function is to
+            a) use threads each with a separate connection to riak, handling a chunk of log data
+            b) use a fixed size queue to limit the amount of logs read and kept in memory.
+                Any time the queue size falls below the half full (or half empty), we
+                read the disk and refill it.
+        '''
+        self.threads = [threading.Thread(target = self._worker) \
+                            for t in xrange(self.num_threads)]
+        for t in self.threads:
+            t.daemon = True
+            t.start()
+
+        data_stream = iter(self.iterable)
+        task = set(itertools.islice(data_stream, self.chunk_size))
+        while task:
+            try:
+                self.tasks.put_nowait(task)
+            except Queue.Full:
+                self.refill_tasks.clear()
+                self.refill_tasks.wait()
+            task = set(itertools.islice(data_stream, self.chunk_size))
+        self.tasks.join()
 
 if __name__ == '__main__':
     config = ConfigParser.RawConfigParser()
     config.read(CONFIG_FILE)
-    Ingester(config).start()
+    Ingester(config, parser.parse_directories(config)).start()

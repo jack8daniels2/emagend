@@ -90,7 +90,7 @@ if __name__ == '__main__':
     CONFIG_FILE = 'config.cfg'
     config = ConfigParser.RawConfigParser()
     config.read(CONFIG_FILE)
-    db = riak_db(config, 'test')
+    db = riak_db(config)
     db.put('j', date.today().replace(day=1))
     print db.get('j')
     db.put('k', date.today().replace(day=1))

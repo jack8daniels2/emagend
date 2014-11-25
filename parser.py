@@ -16,9 +16,9 @@ def parse_directories(config):
     date_format = config.get('ingest','date_format')
     access_file_pattern = re.compile(access_file_regex)
     for root, dirs, files in os.walk(log_dir):
-        if not root:
-            continue
         sub_dir = root.rsplit('/',1)[-1]
+        if not sub_dir:
+            continue
         try:
             dt = datetime.strptime(sub_dir, date_format).date()
         except ValueError:
@@ -28,7 +28,7 @@ def parse_directories(config):
             if access_file_pattern.match(access_file):
                 filepath = os.path.join(root, access_file)
                 for ip in parse_file(filepath):
-                    yield dt, ip
+                    yield ip, dt
         logger.info('Ingested directory {}'.format(sub_dir))
 
 def parse_file(log_file):
