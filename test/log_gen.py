@@ -35,8 +35,8 @@ try:
 except Exception as e:
     print e
 today = date.today()
-for day in xrange((today - relativedelta(days=num_days)).day, today.day):
-    dt = today.replace(day=day)
+for i in xrange(num_days):
+    dt = today - relativedelta(days=i)
     sub_dir = os.path.join(log_dir, dt.strftime(date_format))
     try:
         os.mkdir(sub_dir)

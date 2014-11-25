@@ -8,8 +8,9 @@ import utils.logging_helper
 from bitarray import bitarray
 from datetime import datetime, date
 from abc import ABCMeta, abstractmethod
+import logging
 
-logger = utils.logging_helper.init_logger(__name__)
+logger = utils.logging_helper.init_logger(__name__, logging.ERROR)
 
 class kl_db(object):
     __metaclass__ = ABCMeta
