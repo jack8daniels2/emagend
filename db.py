@@ -58,7 +58,7 @@ class riak_db(kl_db):
                 update.setall(0)
                 access_list.extend(update)
         access_list[-1] = 1
-        logger.info('key {} value {} at index {}'.format(ip, access_list, index-1))
+        logger.debug('key {} value {} at index {}'.format(ip, access_list, index-1))
         obj.data = access_list.unpack(one=b'\x01')
         obj.store()
 
@@ -75,7 +75,7 @@ class riak_db(kl_db):
             raise Exception('Invalid date range {}'.format(date_range))
         start_index = (date_range[0] - self.epoch).days
         end_index = (date_range[1] - self.epoch).days + 1
-        logger.info('Accessing {} {}'.format(start_index, end_index))
+        logger.debug('Accessing {} {}'.format(start_index, end_index))
         return access_list[start_index:end_index]
 
     def isset(self, ip, date_range = None):

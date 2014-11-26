@@ -21,15 +21,16 @@ from datetime import datetime
 import logging
 
 CONFIG_FILE = 'config.cfg'
-logger = logging_helper.init_logger(__name__, logging.ERROR)
+logger = logging_helper.init_logger(__name__, logging.INFO)
 
 class Ingester(object):
-    def __init__(self, config, iterable, num_threads = 4, chunk_size = 50):
+    def __init__(self, config, iterable, num_threads = 4,
+                 chunk_size = 50, queue_size = 4):
         self.config = config
         self.num_threads = num_threads
         self.chunk_size = chunk_size
-        self.tasks = Queue.Queue(2*num_threads)
-        self.refill_tasks = threading.Event()
+        self.tasks = Queue.Queue(queue_size*num_threads)
+        self.refill_tasks = threading.Condition()
         self.iterable = iterable
         #http://bugs.python.org/issue7980 need to call strptime before the threads call it!
         epoch = config.get('ingest','epoch')
@@ -43,8 +44,13 @@ class Ingester(object):
             for data in task:
                 db_hndl.put(*data)
             self.tasks.task_done()
-            if self.tasks.qsize() < self.tasks.maxsize /  2:
-                self.refill_tasks.set()
+            if self.tasks.qsize() < self.tasks.maxsize / 2:
+                logger.debug('Queue getting empty')
+                self.refill_tasks.acquire()
+                self.refill_tasks.notify()
+                self.refill_tasks.release()
+                logger.debug('Notified main thread that tasks queue is running out of tasks')
+        logging.debug('Exiting')
 
     def start(self):
         '''
@@ -70,8 +76,12 @@ class Ingester(object):
                 total_num_records += len(task)
                 task = set(itertools.islice(data_stream, self.chunk_size))
             except Queue.Full:
-                self.refill_tasks.clear()
-                self.refill_tasks.wait()
+                logger.debug('Task queue full')
+                self.refill_tasks.acquire()
+                while self.tasks.qsize() >= self.tasks.maxsize / 2:
+                    logger.debug('Waiting for tasks queue to be empty')
+                    self.refill_tasks.wait()
+                self.refill_tasks.release()
         self.tasks.join()
         logger.info('Processed {} records'.format(total_num_records))
 
