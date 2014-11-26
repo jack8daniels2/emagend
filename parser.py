@@ -3,8 +3,9 @@ import ConfigParser
 import os
 import re
 import utils.logging_helper
+import logging
 
-logger = utils.logging_helper.init_logger(__name__)
+logger = utils.logging_helper.init_logger(__name__, logging.ERROR)
 
 def parse_directories(config):
     ''' Look for all files matching log_dir/<date>/access_file_regex

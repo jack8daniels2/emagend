@@ -18,16 +18,17 @@ import threading
 import Queue
 import itertools
 from datetime import datetime
+import logging
 
 CONFIG_FILE = 'config.cfg'
-logger = logging_helper.init_logger(__name__)
+logger = logging_helper.init_logger(__name__, logging.ERROR)
 
 class Ingester(object):
     def __init__(self, config, iterable, num_threads = 4, chunk_size = 50):
         self.config = config
         self.num_threads = num_threads
         self.chunk_size = chunk_size
-        self.tasks = Queue.Queue(num_threads)
+        self.tasks = Queue.Queue(2*num_threads)
         self.refill_tasks = threading.Event()
         self.iterable = iterable
         #http://bugs.python.org/issue7980 need to call strptime before the threads call it!
@@ -62,14 +63,17 @@ class Ingester(object):
 
         data_stream = iter(self.iterable)
         task = set(itertools.islice(data_stream, self.chunk_size))
+        total_num_records = 0
         while task:
             try:
                 self.tasks.put_nowait(task)
+                total_num_records += len(task)
+                task = set(itertools.islice(data_stream, self.chunk_size))
             except Queue.Full:
                 self.refill_tasks.clear()
                 self.refill_tasks.wait()
-            task = set(itertools.islice(data_stream, self.chunk_size))
         self.tasks.join()
+        logger.info('Processed {} records'.format(total_num_records))
 
 if __name__ == '__main__':
     config = ConfigParser.RawConfigParser()
