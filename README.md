@@ -14,7 +14,7 @@ With such access log data, there is usually a retention period. Also, there is s
 **Assumption: We are going to assume that there is no pattern in the IPs that are queried for, that is, it is completely random. But, we are going to see more queries for more recent access. It is not a strict requirement, but we need to make some assumption to show value of a proposed bloom filter/cache.**
 
 The given log generator code doesn't gaurantee unique IPs and doesn't give any information on the day that access was made. We are going to assume that a log file contains unique IPs, all belonging to the same date. Most likely, the ingest part of the solution is going to be idempotent and won't be affected if the IPs are not unique. Also, extacting unique IPs from a file is not a very hard problem.
-A webserver of this scale is going to be multi-tenant, with many such logs files per day. We are going to assume that we have data in the format `logs/<date>/access_*.log` that we ingest at a regular interval. It would have been better reading it off a message queue, and we don't need to maintain a 'cursor'. For now, it is a completely bulk ingest, a log dir at a time.
+A webserver of this scale is going to be multi-tenant, with many such logs files per day. We are going to assume that we have data in the format `logs/<date>/access_*.log` that we ingest at a regular interval. There can be multiple instances of ingest running on different machines. We can do a stream ingest, utilizing a message queue of sorts, but for this problem, we are going to build a bulk ingest, ingesting one directory at a time.
 
 **Assumption: Each log file contains unique set of IPs all belonging to the access made on the same date. We'll have multiple such files `access_*.log` for each day, in a directory named `<date>`**
 
@@ -36,7 +36,7 @@ There are many options on how we want to store this list.
 
 #### Bloom filter of IPs
 We can maintain a bloom filter of IPs for a particular period that we expect to be queried more often. For a proof of concept, let's assume we maintain the bloom filter for the last month. Given that we expect 500M unique IPs in a month out of a potential 4B possible IPv4s, we can respond to 3/4 of the queries, corresponding to non-existant IPs, from the bloom filter in O(1). For the rest 1/4 (potentially false) positives, we hit the database.
-If we plan to maintain multiple months of such filters, we can potentially keep a bitmap (non-probabilistic) of 4B entries for each quarter (converting IP to 32 bit Int), taking 4G space on disk. 
+If we plan to maintain multiple months of such filters, we can potentially keep a bitmap (non-probabilistic) of 4B entries for each quarter (converting IP to 32 bit Int), taking 4G space on disk.
 
 pybloomfilter seems like a good candidate to maintain a monthly list of IP addresses. 500M entries creates a 571M file which is mmaped by the library. No documentation on hash functions though; murmer hash would have been good to have.
 A counting bloom filter would have been a better approach as we could have easily maintained a sliding window cache of last 30 days.
