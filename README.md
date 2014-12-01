@@ -34,8 +34,13 @@ There are many options on how we want to store this list.
 
     This schema will take more space but improves search performance to O(log(n)) without wasting too much space. There are further optimizations to this schema, but again depend upon retention period and query pattern.
 
-For in-memory cache, we'll tentatively use a bloom filter[IP] for a particular period that we expect to be queried for more often. This needs to be tuned based on performance and usage, but just for a proof of concept, we'll maintain it for current month.
+#### Bloom filter of IPs
+We can maintain a bloom filter of IPs for a particular period that we expect to be queried more often. For a proof of concept, let's assume we maintain the bloom filter for the last month. Given that we expect 500M unique IPs in a month out of a potential 4B possible IPv4s, we can respond to 3/4 of the queries, corresponding to non-existant IPs, from the bloom filter in O(1). For the rest 1/4 (potentially false) positives, we hit the database.
+If we plan maintain multiple months of such filters, we can potentially keep a bitmap of 4B entries for each quarter (converting IP to 32 bit Int), taking 4G space on disk and have 0% probability of false positives.
+
+pybloomfilter seems like a good candidate to maintain a monthly list of IP addresses. 500M entries creates a 571M file which is mmaped by the library. No documentation on hash functions though; murmer hash would have been good to have.
 A counting bloom filter would have been a better approach as we could have easily maintained a sliding window cache of last 30 days.
+
 
 ### Dependencies
 * bitarray
