@@ -1,9 +1,10 @@
-emagend
---------
+Problem
+-------
+A website recieves half a billion unique users each month. We want a service that enables us to query if a particular IP visited the website in a particular time range.
 
-The problem is (intentionally) very vague. Every aspect of the solution is dependent on the use-case(s).
-
-In general, such use-cases don't require a high query performance and thus don't necessitate a large amount of resources. A simple solution in such scenarios would be two map-reduce jobs - first one to preprocess and aggregate the raw logs, and second one to perform the query on top of aggregated logs. HDFS like file systems shard the data automatically and it would scale pretty well. It also allows you to store as much infrmation as you want about the access and retrieve later. But, this solution isn't a very interesting interview problem.
+Proposed solution
+-----------------
+In general, such use-cases don't require a high query performance and thus don't necessitate a large amount of resources. A simple solution in such scenarios would be two map-reduce jobs - first one to preprocess and aggregate the raw logs, and second one to perform the query on top of aggregated logs. HDFS like file systems shard the data automatically and it would scale pretty well. It also allows you to store as much infrmation as you want about the access and retrieve later. But, this solution isn't a very interesting coding challenge.
 
 So, we focus on a solution that gives us good query performance and we (responsibly) throw resourses at indexing the data.
 
